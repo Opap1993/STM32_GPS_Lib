@@ -113,7 +113,8 @@ void GPS_Init(GPS_Data_t *gps, UART_HandleTypeDef *huart) {
     gps->huart = huart;
     gps->gpsHasFix = 0;
     gps->gpsUpdated = 0;
-
+    gps->lastTick = HAL_GetTick();
+    gps->gpsTimeout = 0;
     // Start DMA
     HAL_UARTEx_ReceiveToIdle_DMA(gps->huart, rxBuffer, DMA_BUF_SIZE);
     // Disable Half-Transfer
@@ -156,9 +157,18 @@ void GPS_ProcessCallback(GPS_Data_t *gps, uint16_t Size) {
 
 void  GPS_Process(GPS_Data_t *gps) {
 	gps->gpsUpdated = 0;
+	if (HAL_GetTick() - gps->lastTick > 10000) {
+	        gps->gpsTimeout = 1;
+	        gps->gpsHasFix = 0;
+	        gps->decimalLat = 0;   // Clear old data
+	        gps->decimalLong = 0;
+	    }
 	if (nmeaReady) {
 		 nmeaReady = 0;
+		 gps->lastTick = HAL_GetTick();
+		 gps->gpsTimeout = 0;
 		 char *ptr = nmeaLine;
+		 //printf("data: %s\r\n", nmeaLine);
 		 while ((ptr = strstr(ptr, "$")) != NULL) {
 		 // Look for the end of the NMEA sentence
 		 char *end = strchr(ptr, '\r');
@@ -179,24 +189,15 @@ void  GPS_Process(GPS_Data_t *gps) {
 		              }
 		          }
 	}
+
 }
 
 float getLat(GPS_Data_t *gps){
-	if(gps->gpsUpdated){
-		return gps->decimalLat;
-	}
-	else {
-		return 0;
-	}
+    return gps->decimalLat;
 }
 
 float getLong(GPS_Data_t *gps){
-	if(gps->gpsUpdated){
-		return gps->decimalLong;
-	}
-	else {
-		return 0;
-	}
+    return gps->decimalLong;
 }
 
 
